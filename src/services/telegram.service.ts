@@ -12,11 +12,13 @@ class TelegramService {
 	}
 
 	private setupHandlers() {
+		console.log("Setting up Telegram handlers...");
 		this.bot.command("start", async (ctx) => {
 			await ctx.reply("👋 Hi! I'm your AI assistant. Send me a message and I'll help you out!");
 		});
 
 		this.bot.on("message:text", async (ctx) => {
+			console.log("Received message:", ctx.message.text);
 			try {
 				const userId = ctx.from.id.toString();
 				const messageText = ctx.message.text;
