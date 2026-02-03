@@ -19,22 +19,20 @@ class TelegramService {
 
 		this.bot.on("message:text", async (ctx) => {
 			console.log("Received message:", ctx.message.text);
-			console.error("error test:", ctx.message.text);
 			try {
-				const userId = ctx.from.id.toString();
-				const messageText = ctx.message.text;
 
-				const existingUser = await usersService.getUserById(userId);
-
-				if (!existingUser) {
-					await usersService.createUser({ name: `${ctx.from.first_name} ${ctx.from.last_name}` }, userId);
+				const user = await usersService.getUserById(ctx.from.id.toString());
+				if (!user) {
+					await ctx.reply("Sorry, you are not registered in the system. Please register first.");
+					return;
 				}
 
-				await ctx.replyWithChatAction("typing");
-
-				const response = await chatService.processMessage(userId, messageText);
-
-				await ctx.reply(response.response);
+				else {
+					const messageText = ctx.message.text;
+					await ctx.replyWithChatAction("typing");
+					const response = await chatService.processMessage(user.userId, messageText);
+					await ctx.reply(response.response);
+				}
 			} catch (error) {
 				console.error("Error processing Telegram message:", error);
 				await ctx.reply("Sorry, I encountered an error processing your message. Please try again.");
