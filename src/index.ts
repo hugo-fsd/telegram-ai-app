@@ -4,11 +4,9 @@ import { database } from "./db";
 
 await database.connect();
 
-const { chatController } = await import("./controllers/chat.controller");
-const { usersController } = await import("./controllers/users.controller");
 const { telegramController } = await import("./controllers/telegram.controller");
 
-const app = new Elysia().use(usersController).use(chatController).use(telegramController).listen(8080);
+const app = new Elysia().use(telegramController).listen(8080);
 
 console.log(`🚀 Server running at ${app.server?.hostname}:${app.server?.port}`);
 
