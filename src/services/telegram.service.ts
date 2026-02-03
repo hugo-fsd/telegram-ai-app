@@ -19,6 +19,7 @@ class TelegramService {
 
 		this.bot.on("message:text", async (ctx) => {
 			console.log("Received message:", ctx.message.text);
+			console.error("error test:", ctx.message.text);
 			try {
 				const userId = ctx.from.id.toString();
 				const messageText = ctx.message.text;
