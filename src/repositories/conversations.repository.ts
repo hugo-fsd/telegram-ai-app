@@ -1,0 +1,59 @@
+import type { ModelMessage } from "ai";
+import type { Collection, Db } from "mongodb";
+import { ObjectId } from "mongodb";
+import { database } from "../db";
+import type { Conversation } from "../models/converstation";
+
+class ConversationsRepository {
+	private readonly collection: Collection<Conversation>;
+
+	constructor(db: Db, collectionName: string) {
+		this.collection = db.collection<Conversation>(collectionName);
+	}
+
+	async createConversation(conversation: Conversation): Promise<void> {
+		await this.collection.insertOne(conversation);
+	}
+
+	async getConversation(id: string): Promise<Conversation | null> {
+		return await this.collection.findOne({ _id: new ObjectId(id) });
+	}
+
+	async updateConversation(id: string, conversation: Conversation): Promise<void> {
+		await this.collection.updateOne(
+			{ _id: new ObjectId(id) },
+			{ $set: conversation },
+		);
+	}
+
+	async getUserConversations(userId: string): Promise<Conversation[]> {
+		return await this.collection.find({ userId: userId }).toArray();
+	}
+
+	async addMessage(conversationId: string, message: ModelMessage): Promise<void> {
+		await this.collection.updateOne(
+			{ _id: new ObjectId(conversationId) },
+			{ $push: { messages: message }, $set: { updatedAt: new Date() } },
+		);
+	}
+
+	async addMessages(conversationId: string, messages: ModelMessage[]): Promise<void> {
+		await this.collection.updateOne(
+			{ _id: new ObjectId(conversationId) },
+			{ $push: { messages: { $each: messages } }, $set: { updatedAt: new Date() } },
+		);
+	}
+
+	async getConversationMessages(conversationId: string, limit?: number): Promise<ModelMessage[]> {
+		const projection = limit ? { messages: { $slice: -limit } } : { messages: 1 };
+
+		const conversation = await this.collection.findOne(
+			{ _id: new ObjectId(conversationId) },
+			{ projection },
+		);
+
+		return conversation?.messages || [];
+	}
+}
+
+export const conversationsRepository = new ConversationsRepository(database.getDb(), "conversations");
