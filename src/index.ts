@@ -12,11 +12,14 @@ console.log(`🚀 Server running at ${app.server?.hostname}:${app.server?.port}`
 
 const { telegramService } = await import("./services/telegram.service");
 
+await telegramService.removeWebhook();
+await new Promise(resolve => setTimeout(resolve, 1000));
 await telegramService.setWebhook(env.TELEGRAM_WEBHOOK_URL);
 
 if (import.meta.hot) {
-	import.meta.hot.dispose(() => {
+	import.meta.hot.dispose(async () => {
 		console.log("🔄 Hot reload detected - stopping bot...");
-		telegramService.stop();
+		await telegramService.removeWebhook();
+		await telegramService.stop();
 	});
 }

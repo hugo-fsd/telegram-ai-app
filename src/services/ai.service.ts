@@ -26,7 +26,6 @@ export const aiService = {
 			messages: [timeContextMessage, ...messages],
 		});
 
-		console.log(JSON.stringify(result, null, 2));
 		return result;
 	},
 };

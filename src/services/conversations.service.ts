@@ -34,7 +34,7 @@ export const conversationsService = {
 		await conversationsRepository.addMessages(conversationId, cleanMessages);
 	},
 
-	async getConversationMessages(conversationId: string, limit = 999): Promise<ModelMessage[]> {
+	async getConversationMessages(conversationId: string, limit = 5): Promise<ModelMessage[]> {
 		return await conversationsRepository.getConversationMessages(conversationId, limit);
 	},
 };

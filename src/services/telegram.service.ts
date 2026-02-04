@@ -44,7 +44,9 @@ class TelegramService {
 
 		const messageText = ctx.message.text;
 		const response = await chatService.processMessage(user.userId, messageText);
-		await ctx.reply(response.response);
+
+		const replyText = response.response?.trim() || "I apologize, but I couldn't generate a response. Please try again.";
+		await ctx.reply(replyText);
 	}
 
 	async handleCommand(ctx: any): Promise<void> {
@@ -72,13 +74,24 @@ class TelegramService {
 	}
 
 	async setWebhook(url: string) {
-		await this.bot.api.setWebhook(url);
-		console.log(`🤖 Telegram webhook set to: ${url}`);
+		try {
+			await this.bot.api.setWebhook(url, {
+				drop_pending_updates: true,
+			});
+			console.log(`🤖 Telegram webhook set to: ${url}`);
+		} catch (error) {
+			console.error("Failed to set webhook:", error);
+			throw error;
+		}
 	}
 
 	async removeWebhook() {
-		await this.bot.api.deleteWebhook();
-		console.log("🤖 Telegram webhook removed");
+		try {
+			await this.bot.api.deleteWebhook({ drop_pending_updates: true });
+			console.log("🤖 Telegram webhook removed");
+		} catch (error) {
+			console.error("Failed to remove webhook:", error);
+		}
 	}
 
 	async stop() {
