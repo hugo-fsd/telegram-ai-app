@@ -12,18 +12,11 @@ console.log(`🚀 Server running at ${app.server?.hostname}:${app.server?.port}`
 
 const { telegramService } = await import("./services/telegram.service");
 
-if (env.TELEGRAM_WEBHOOK_URL) {
-	const webhookUrl = `${env.TELEGRAM_WEBHOOK_URL}/telegram/webhook`;
-	await telegramService.setWebhook(webhookUrl);
-	console.log(`🤖 Telegram bot running in webhook mode: ${webhookUrl}`);
-} else {
-	await telegramService.startPolling();
-	console.log("🤖 Telegram bot running in polling mode (local dev)");
+await telegramService.setWebhook(env.TELEGRAM_WEBHOOK_URL);
 
-	if (import.meta.hot) {
-		import.meta.hot.dispose(() => {
-			console.log("🔄 Hot reload detected - stopping bot...");
-			telegramService.stop();
-		});
-	}
+if (import.meta.hot) {
+	import.meta.hot.dispose(() => {
+		console.log("🔄 Hot reload detected - stopping bot...");
+		telegramService.stop();
+	});
 }

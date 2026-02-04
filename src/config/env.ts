@@ -12,7 +12,7 @@ const envSchema = z.object({
 	MONGODB_URI: z.string().min(1, "MONGODB_URI is required"),
 	MONGODB_DB_NAME: z.string().min(1, "MONGODB_DB_NAME is required"),
 	TELEGRAM_BOT_TOKEN: z.string().min(1, "TELEGRAM_BOT_TOKEN is required"),
-	TELEGRAM_WEBHOOK_URL: z.string().optional(),
+	TELEGRAM_WEBHOOK_URL: z.string().min(1, "TELEGRAM_WEBHOOK_URL is required"),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -12,26 +12,12 @@ class TelegramService {
 	}
 
 	private setupHandlers() {
-		console.log("Setting up Telegram handlers...");
-		this.bot.command("start", async (ctx) => {
-			await ctx.reply("👋 Hi! I'm your AI assistant. Send me a message and I'll help you out!");
-		});
-
 		this.bot.on("message:text", async (ctx) => {
-			console.log("Received message:", ctx.message.text);
 			try {
-
-				const user = await usersService.getUserById(ctx.from.id.toString());
-				if (!user) {
-					await ctx.reply("Sorry, you are not registered in the system. Please register first.");
-					return;
-				}
-
-				else {
-					const messageText = ctx.message.text;
-					await ctx.replyWithChatAction("typing");
-					const response = await chatService.processMessage(user.userId, messageText);
-					await ctx.reply(response.response);
+				if (ctx.message.text.startsWith("/")) {
+					await this.handleCommand(ctx);
+				} else {
+					await this.handleMessage(ctx);
 				}
 			} catch (error) {
 				console.error("Error processing Telegram message:", error);
@@ -44,42 +30,57 @@ class TelegramService {
 		});
 	}
 
-	/**
-	 * Returns the webhook callback for handling Telegram updates
-	 * Use this in your HTTP endpoint
-	 */
 	getWebhookCallback() {
 		return webhookCallback(this.bot, "std/http");
 	}
 
-	/**
-	 * Set the webhook URL (call this once when deploying)
-	 * @param url - Your public webhook URL (e.g., https://yourdomain.com/telegram/webhook)
-	 */
+	async handleMessage(ctx: any): Promise<void> {
+		await ctx.replyWithChatAction("typing");
+		const user = await usersService.getUserById(ctx.from.id.toString());
+		if (!user) {
+			await ctx.reply("Sorry, you are not registered in the system. Please register first.");
+			return;
+		}
+
+		const messageText = ctx.message.text;
+		const response = await chatService.processMessage(user.userId, messageText);
+		await ctx.reply(response.response);
+	}
+
+	async handleCommand(ctx: any): Promise<void> {
+		const commandText = ctx.message.text;
+		const command = commandText.split(" ")[0].toLowerCase();
+
+		switch (command) {
+			case "/start":
+				await ctx.reply("👋 Hi! I'm your AI assistant. Send me a message and I'll help you out!");
+				break;
+
+			case "/help":
+				await ctx.reply(
+					"🤖 Available commands:\n" +
+					"/start - Start the bot\n" +
+					"/help - Show this help message\n" +
+					"\nJust send me any message and I'll respond using AI!"
+				);
+				break;
+
+			default:
+				await ctx.reply("Unknown command. Use /help to see available commands.");
+				break;
+		}
+	}
+
 	async setWebhook(url: string) {
 		await this.bot.api.setWebhook(url);
 		console.log(`🤖 Telegram webhook set to: ${url}`);
 	}
 
-	/**
-	 * Remove webhook (useful for switching to polling in development)
-	 */
 	async removeWebhook() {
 		await this.bot.api.deleteWebhook();
 		console.log("🤖 Telegram webhook removed");
 	}
 
-	/**
-	 * Start polling mode (for local development without public URL)
-	 */
-	async startPolling() {
-		console.log("🤖 Starting Telegram bot in polling mode...");
-		await this.bot.start();
-	}
-
-	/**
-	 * Stop the bot
-	 */
 	async stop() {
 		await this.bot.stop();
 		console.log("🤖 Telegram bot stopped");
