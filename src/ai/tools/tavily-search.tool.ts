@@ -1,8 +1,8 @@
 import { tavilySearch } from "@tavily/ai-sdk";
 
 export const tavilySearchTool = tavilySearch({
-    searchDepth: "advanced",
+    searchDepth: "basic",
     includeAnswer: true,
-    maxResults: 5,
+    maxResults: 2,
     topic: "general",
 });
