@@ -1,6 +1,7 @@
 import { openrouter } from "@openrouter/ai-sdk-provider";
 import { ToolLoopAgent } from "ai";
 import { emailTool } from "../tools/email-tool";
+import { tavilySearchTool } from "../tools/tavily-search.tool";
 import { weatherTool } from "../tools/weather-tool";
 
 export const generalAgent = new ToolLoopAgent({
@@ -17,5 +18,5 @@ There might be messages in the conversation history that contain other dates and
 The user may also be wrong about the time, so you should AWAYS use the current time information provided in the most recent system context.
 This time is generated programmatically by the system and is always the correct current time.
 WHEN ADDRESSING TIME NEVER GO BY MEMORY, ALWAYS USE THE CURRENT TIME INFORMATION PROVIDED IN THE SYSTEM CONTEXT. YOU WILL FAIL IF YOU DO NOT DO THIS.`,
-	tools: { weatherTool, emailTool },
+	tools: { weatherTool, emailTool, tavilySearchTool },
 });

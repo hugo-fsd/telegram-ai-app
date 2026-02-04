@@ -13,6 +13,7 @@ const envSchema = z.object({
 	MONGODB_DB_NAME: z.string().min(1, "MONGODB_DB_NAME is required"),
 	TELEGRAM_BOT_TOKEN: z.string().min(1, "TELEGRAM_BOT_TOKEN is required"),
 	TELEGRAM_WEBHOOK_URL: z.string().min(1, "TELEGRAM_WEBHOOK_URL is required"),
+	TAVILY_API_KEY: z.string().min(1, "TAVILY_API_KEY is required"),
 });
 
 export type Env = z.infer<typeof envSchema>;
