@@ -6,7 +6,10 @@ await database.connect();
 
 const { telegramController } = await import("./controllers/telegram.controller");
 
-const app = new Elysia().use(telegramController).listen(8080);
+const app = new Elysia().use(telegramController).listen({
+	hostname: "0.0.0.0",
+	port: env.PORT,
+});
 
 console.log(`🚀 Server running at ${app.server?.hostname}:${app.server?.port}`);
 
