@@ -1,8 +1,8 @@
 import { Bot, webhookCallback } from "grammy";
 import { env } from "../config/env";
 import { chatService } from "./chat.service";
-import { usersService } from "./users.service";
 import { logger } from "./logger.service";
+import { usersService } from "./users.service";
 
 class TelegramService {
 	private bot: Bot;

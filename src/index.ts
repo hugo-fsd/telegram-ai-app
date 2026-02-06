@@ -8,6 +8,7 @@ Sentry.init({
 	dsn: env.SENTRY_DSN,
 	environment: env.NODE_ENV,
 	tracesSampleRate: 1.0,
+	enableLogs: true,
 });
 
 console.log("✅ Sentry initialized");
