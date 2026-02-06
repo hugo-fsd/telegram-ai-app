@@ -13,6 +13,7 @@ class TelegramService {
 
 	private setupHandlers() {
 		this.bot.on("message:text", async (ctx) => {
+			console.log("Telegram message:", ctx.message.text);
 			try {
 				if (ctx.message.text.startsWith("/")) {
 					await this.handleCommand(ctx);
