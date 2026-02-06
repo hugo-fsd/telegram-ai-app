@@ -2,16 +2,18 @@ import type { CreateUserRequest, User } from "../models/user";
 import { userRepository } from "../repositories/user.repository";
 
 export const usersService = {
-	async createUser(input: CreateUserRequest, userId?: string): Promise<void> {
+	async createUser(input: CreateUserRequest, userId?: string): Promise<User> {
 		const user: User = {
 			...input,
 			userId: userId ?? crypto.randomUUID(),
 			conversations: [],
+			activated: false,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		};
 
 		await userRepository.createUser(user);
+		return user;
 	},
 
 	async getUserById(id: string): Promise<User | null> {

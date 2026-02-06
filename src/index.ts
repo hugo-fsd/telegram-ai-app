@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/bun";
 import { Elysia } from "elysia";
 import { env } from "./config/env";
 import { database } from "./db";
+import { logger } from "./services/logger.service";
 
 // Initialize Sentry FIRST
 Sentry.init({
@@ -11,7 +12,7 @@ Sentry.init({
 	enableLogs: true,
 });
 
-console.log("✅ Sentry initialized");
+logger.info("Sentry initialized");
 
 await database.connect();
 
@@ -22,7 +23,7 @@ const app = new Elysia().use(telegramController).listen({
 	port: env.PORT,
 });
 
-console.log(`🚀 Server running at ${app.server?.hostname}:${app.server?.port}`);
+logger.info(`Server running at ${app.server?.hostname}:${app.server?.port}`);
 
 const { telegramService } = await import("./services/telegram.service");
 
@@ -32,7 +33,7 @@ await telegramService.setWebhook(env.TELEGRAM_WEBHOOK_URL);
 
 if (import.meta.hot) {
 	import.meta.hot.dispose(async () => {
-		console.log("🔄 Hot reload detected - stopping bot...");
+		logger.info("Hot reload detected - stopping bot");
 		await telegramService.removeWebhook();
 		await telegramService.stop();
 	});

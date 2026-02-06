@@ -5,6 +5,7 @@ export const userSchema = z.object({
 	userId: z.string().min(1),
 	name: z.string().min(1),
 	conversations: z.array(z.custom<Conversation>()).default([]),
+	activated: z.boolean().default(false),
 	createdAt: z.date(),
 	updatedAt: z.date(),
 });

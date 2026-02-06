@@ -14,7 +14,6 @@ export const logger = {
 			Sentry.setContext("custom", context);
 		}
 		Sentry.captureException(error);
-		console.error("❌ Error:", error);
 	},
 
 	/**
@@ -26,7 +25,6 @@ export const logger = {
 			level: "info",
 			contexts: context ? { custom: context } : undefined,
 		});
-		console.log("ℹ️", message);
 	},
 
 	/**
@@ -38,7 +36,6 @@ export const logger = {
 			level: "warning",
 			contexts: context ? { custom: context } : undefined,
 		});
-		console.warn("⚠️", message);
 	},
 
 	/**
@@ -84,10 +81,8 @@ export const logger = {
 	startTransaction: (name: string, op?: string) => {
 		if (typeof (Sentry as any).startTransaction === "function") {
 			return (Sentry as any).startTransaction({ name, op: op || "function" });
-		} else {
-			console.warn("Sentry.startTransaction is not available in this Sentry SDK.");
-			return null;
 		}
+		return null;
 	},
 };
 

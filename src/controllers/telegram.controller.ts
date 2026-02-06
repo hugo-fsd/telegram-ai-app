@@ -12,7 +12,6 @@ export const telegramController = new Elysia()
 	})
 	.post("/telegram/webhook", async ({ request }) => {
 		logger.breadcrumb("Received webhook from Telegram");
-		console.log("📨 Received webhook request from Telegram");
 		
 		try {
 			const callback = telegramService.getWebhookCallback();

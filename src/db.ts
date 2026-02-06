@@ -1,5 +1,6 @@
 import { type Db, MongoClient } from "mongodb";
 import { env } from "./config/env";
+import { logger } from "./services/logger.service";
 
 class Database {
 	private client: MongoClient | null = null;
@@ -16,7 +17,7 @@ class Database {
 		await this.client.connect();
 		this.db = this.client.db(env.MONGODB_DB_NAME);
 
-		console.log(`✅ Connected to MongoDB: ${env.MONGODB_DB_NAME}`);
+		logger.info(`Connected to MongoDB: ${env.MONGODB_DB_NAME}`);
 	}
 
 	getDb(): Db {
@@ -31,7 +32,7 @@ class Database {
 			await this.client.close();
 			this.client = null;
 			this.db = null;
-			console.log("Disconnected from MongoDB");
+			logger.info("Disconnected from MongoDB");
 		}
 	}
 }

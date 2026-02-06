@@ -1,8 +1,10 @@
-import { Bot, webhookCallback } from "grammy";
+import { Bot, type Context, type Filter, webhookCallback } from "grammy";
 import { env } from "../config/env";
 import { chatService } from "./chat.service";
 import { logger } from "./logger.service";
 import { usersService } from "./users.service";
+
+type MessageContext = Filter<Context, "message:text">;
 
 class TelegramService {
 	private bot: Bot;
@@ -16,38 +18,52 @@ class TelegramService {
 		this.bot.on("message:text", async (ctx) => {
 			const userId = ctx.from.id.toString();
 			const username = ctx.from.username || ctx.from.first_name;
-			
-			// Set user context for this request
+
 			logger.setUser({ id: userId, username });
-			logger.breadcrumb("Received Telegram message", { 
-				userId, 
+			logger.breadcrumb("Received Telegram message", {
+				userId,
 				username,
-				messageLength: ctx.message.text.length 
+				messageLength: ctx.message.text.length
 			});
-			
+
 			try {
+				let user = await usersService.getUserById(userId);
+				if (!user) {
+					user = await usersService.createUser({ name: username }, userId);
+				}
+
+				if (!user.activated) {
+					logger.warning("Inactive user attempted to use bot", {
+						telegramId: userId,
+						username,
+						activated: user.activated
+					});
+					await ctx.reply(
+						"⚠️ Your account is not activated yet.\n\n" +
+						"Please contact an administrator to activate your account."
+					);
+					return;
+				}
+
 				if (ctx.message.text.startsWith("/")) {
 					await this.handleCommand(ctx);
 				} else {
 					await this.handleMessage(ctx);
 				}
 			} catch (error) {
-				logger.error(error, { 
-					userId, 
+				logger.error(error, {
+					userId,
 					username,
-					message: ctx.message.text.substring(0, 100) 
+					message: ctx.message.text.substring(0, 100)
 				});
-				console.error("Error processing Telegram message:", error);
 				await ctx.reply("Sorry, I encountered an error processing your message. Please try again.");
 			} finally {
-				// Clear user context after request
 				logger.clearUser();
 			}
 		});
 
 		this.bot.catch((err) => {
 			logger.error(err, { context: "Telegram bot global error handler" });
-			console.error("Telegram bot error:", err);
 		});
 	}
 
@@ -55,43 +71,39 @@ class TelegramService {
 		return webhookCallback(this.bot, "std/http");
 	}
 
-	async handleMessage(ctx: any): Promise<void> {
+	async handleMessage(ctx: MessageContext): Promise<void> {
 		await ctx.replyWithChatAction("typing");
-		
+
 		const user = await usersService.getUserById(ctx.from.id.toString());
 		if (!user) {
-			logger.warning("Unregistered user attempted to use bot", { 
-				telegramId: ctx.from.id.toString(),
-				username: ctx.from.username 
-			});
-			await ctx.reply("Sorry, you are not registered in the system. Please register first.");
+			await ctx.reply("An unexpected error occurred. Please try again.");
 			return;
 		}
 
 		const messageText = ctx.message.text;
-		logger.info("Processing user message", { 
+		logger.info("Processing user message", {
 			userId: user.userId,
-			messagePreview: messageText.substring(0, 50) 
+			messagePreview: messageText.substring(0, 50)
 		});
-		
+
 		const response = await chatService.processMessage(user.userId, messageText);
 
 		const replyText = response.response?.trim() || "I apologize, but I couldn't generate a response. Please try again.";
 		await ctx.reply(replyText);
-		
-		logger.info("Successfully sent response to user", { 
+
+		logger.info("Successfully sent response to user", {
 			userId: user.userId,
-			responseLength: replyText.length 
+			responseLength: replyText.length
 		});
 	}
 
-	async handleCommand(ctx: any): Promise<void> {
+	async handleCommand(ctx: MessageContext): Promise<void> {
 		const commandText = ctx.message.text;
-		const command = commandText.split(" ")[0].toLowerCase();
-		
-		logger.breadcrumb("User executed command", { 
+		const command = commandText.split(" ")[0]?.toLowerCase() ?? "";
+
+		logger.breadcrumb("User executed command", {
 			command,
-			userId: ctx.from.id.toString() 
+			userId: ctx.from.id.toString()
 		});
 
 		switch (command) {
@@ -109,9 +121,9 @@ class TelegramService {
 				break;
 
 			default:
-				logger.warning("Unknown command executed", { 
+				logger.warning("Unknown command executed", {
 					command,
-					userId: ctx.from.id.toString() 
+					userId: ctx.from.id.toString()
 				});
 				await ctx.reply("Unknown command. Use /help to see available commands.");
 				break;
@@ -124,10 +136,8 @@ class TelegramService {
 				drop_pending_updates: true,
 			});
 			logger.info("Telegram webhook set successfully", { url });
-			console.log(`🤖 Telegram webhook set to: ${url}`);
 		} catch (error) {
 			logger.error(error, { context: "setWebhook", url });
-			console.error("Failed to set webhook:", error);
 			throw error;
 		}
 	}
@@ -136,17 +146,14 @@ class TelegramService {
 		try {
 			await this.bot.api.deleteWebhook({ drop_pending_updates: true });
 			logger.info("Telegram webhook removed successfully");
-			console.log("🤖 Telegram webhook removed");
 		} catch (error) {
 			logger.error(error, { context: "removeWebhook" });
-			console.error("Failed to remove webhook:", error);
 		}
 	}
 
 	async stop() {
 		await this.bot.stop();
 		logger.info("Telegram bot stopped");
-		console.log("🤖 Telegram bot stopped");
 	}
 }
 
