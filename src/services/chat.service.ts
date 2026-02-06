@@ -2,21 +2,34 @@ import type { ModelMessage } from "ai";
 import type { ConversationOutput } from "../models/converstation";
 import { aiService } from "./ai.service";
 import { conversationsService } from "./conversations.service";
+import { logger } from "./logger.service";
 
 export const chatService = {
 	async processMessage(userId: string, message: string): Promise<ConversationOutput> {
-		const userConversations = await conversationsService.getUserConversations(userId);
+		logger.breadcrumb("Processing user message", { userId, messageLength: message.length });
+		
+		try {
+			const userConversations = await conversationsService.getUserConversations(userId);
 
-		if (userConversations.length === 0) {
-			return await this.startNewConversation(userId, message);
+			if (userConversations.length === 0) {
+				logger.info("Starting new conversation", { userId });
+				return await this.startNewConversation(userId, message);
+			}
+
+			const conversation = userConversations[0];
+			if (!conversation?._id) {
+				throw new Error("Failed to get conversation");
+			}
+
+			logger.breadcrumb("Continuing existing conversation", { 
+				userId, 
+				conversationId: conversation._id.toString() 
+			});
+			return await this.continueConversation(conversation._id.toString(), message);
+		} catch (error) {
+			logger.error(error, { userId, messagePreview: message.substring(0, 50) });
+			throw error;
 		}
-
-		const conversation = userConversations[0];
-		if (!conversation?._id) {
-			throw new Error("Failed to get conversation");
-		}
-
-		return await this.continueConversation(conversation._id.toString(), message);
 	},
 
 	async startNewConversation(userId: string, message: string): Promise<ConversationOutput> {
@@ -33,6 +46,7 @@ export const chatService = {
 
 		await conversationsService.addMessages(conversationId, [userMessage, ...result.response.messages]);
 
+		logger.info("New conversation created", { userId, conversationId });
 		return { response: result.text, conversationId };
 	},
 
