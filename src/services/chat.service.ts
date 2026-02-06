@@ -42,7 +42,7 @@ export const chatService = {
 		const conversationId = newConversation._id.toString();
 		const userMessage: ModelMessage = { role: "user", content: message };
 
-		const result = await aiService.processMessage([userMessage]);
+		const result = await aiService.processMessage([userMessage], userId);
 
 		await conversationsService.addMessages(conversationId, [userMessage, ...result.response.messages]);
 
@@ -51,12 +51,17 @@ export const chatService = {
 	},
 
 	async continueConversation(conversationId: string, message: string): Promise<ConversationOutput> {
+		const conversation = await conversationsService.getConversation(conversationId);
+		if (!conversation) {
+			throw new Error("Conversation not found");
+		}
+
 		const messages = await conversationsService.getConversationMessages(conversationId);
 		const userMessage: ModelMessage = { role: "user", content: message };
 
 		messages.push(userMessage);
 
-		const result = await aiService.processMessage(messages);
+		const result = await aiService.processMessage(messages, conversation.userId);
 
 		await conversationsService.addMessages(conversationId, [userMessage, ...result.response.messages]);
 

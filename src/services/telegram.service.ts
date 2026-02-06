@@ -151,6 +151,18 @@ class TelegramService {
 		}
 	}
 
+	async sendMessage(userId: string, message: string): Promise<void> {
+		try {
+			await this.bot.api.sendMessage(parseInt(userId, 10), message, {
+				parse_mode: "Markdown",
+			});
+			logger.info("Message sent to user", { userId, messageLength: message.length });
+		} catch (error) {
+			logger.error(error, { context: "sendMessage", userId });
+			throw error;
+		}
+	}
+
 	async stop() {
 		await this.bot.stop();
 		logger.info("Telegram bot stopped");
