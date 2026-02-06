@@ -14,7 +14,7 @@ const envSchema = z.object({
 	TELEGRAM_BOT_TOKEN: z.string().min(1, "TELEGRAM_BOT_TOKEN is required"),
 	TELEGRAM_WEBHOOK_URL: z.string().min(1, "TELEGRAM_WEBHOOK_URL is required"),
 	TAVILY_API_KEY: z.string().min(1, "TAVILY_API_KEY is required"),
-	SENTRY_DNS: z.string().min(1, "SENTRY_DNS is required"),
+	SENTRY_DSN: z.string().min(1, "SENTRY_DSN is required"),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -1,6 +1,16 @@
+import * as Sentry from "@sentry/bun";
 import { Elysia } from "elysia";
 import { env } from "./config/env";
 import { database } from "./db";
+
+// Initialize Sentry FIRST
+Sentry.init({
+	dsn: env.SENTRY_DSN,
+	environment: env.NODE_ENV,
+	tracesSampleRate: 1.0,
+});
+
+console.log("✅ Sentry initialized");
 
 await database.connect();
 
