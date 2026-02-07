@@ -38,7 +38,7 @@ ${alarmsContext}
 
 OPERATIONS:
 - LIST: List all existing alarms for the user.
-- CREATE: Create a new alarm. Check existing alarms first to avoid duplicates.
+- CREATE: Create a new alarm. Check existing alarms first to avoid duplicates. ALWAYS provide a message field with the text that should be sent when the alarm triggers.
 - UPDATE: Update an existing alarm by its ID. Provide alarmId and the fields to update.
 - DELETE: Delete an existing alarm by its ID or name.
 
@@ -47,12 +47,13 @@ IMPORTANT:
 - Before creating, check if an alarm with the same name or schedule already exists.
 - For updates/deletes, use the alarm ID from the list above.
 - Use null for schedule fields that should match any value (wildcards).
+- ALWAYS provide a message field when creating or updating alarms. The message is what will be sent to the user when the alarm triggers.
 
 EXAMPLES:
 - List all alarms: operation="list"
-- Create one-time alarm on Feb 7 at 2:30 PM: operation="create", minute=30, hour=14, day=7, month=2
-- Create recurring alarm every day at 9 AM: operation="create", minute=0, hour=9, day=null, month=null
-- Update alarm: operation="update", alarmId="...", name="New name", hour=10
+- Create one-time alarm on Feb 7 at 2:30 PM: operation="create", name="Meeting", message="Don't forget the meeting at 2:30 PM", minute=30, hour=14, day=7, month=2
+- Create recurring alarm every day at 9 AM: operation="create", name="Morning reminder", message="Time to wake up!", minute=0, hour=9, day=null, month=null
+- Update alarm: operation="update", alarmId="...", name="New name", message="Updated message", hour=10
 - Delete alarm: operation="delete", alarmId="..." or name="Alarm name"
 
 FIELD MEANINGS:
@@ -69,7 +70,7 @@ export const getAlarmTool = () => tool({
 		operation: z.enum(["list", "create", "update", "delete"]).describe("The operation to perform: list, create, update, or delete"),
 		alarmId: z.string().optional().describe("Alarm ID (required for update/delete, optional for create)"),
 		name: z.string().optional().describe("The name/title of the alarm (required for create, optional for update)"),
-		message: z.string().optional().describe("The message that will be displayed to the user when the alarm is sent"),
+		message: z.string().describe("REQUIRED: The message that will be displayed to the user when the alarm is sent. This is the text content of the alarm notification."),
 		minute: z.number().int().min(0).max(59).nullable().optional().describe("Minute (0-59) or null for any minute"),
 		hour: z.number().int().min(0).max(23).nullable().optional().describe("Hour in 24-hour format (0-23) or null for any hour"),
 		day: z.number().int().min(1).max(31).nullable().optional().describe("Day of month (1-31) or null for any day"),
@@ -170,7 +171,7 @@ export const getAlarmTool = () => tool({
 			}
 			await alarmService.createAlarm(userId, {
 				name,
-				message: message || "",
+				message: message ?? "",
 				schedule: {
 					timezone: "UTC",
 					expiresAt,

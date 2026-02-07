@@ -125,8 +125,9 @@ class TelegramService {
 	}
 
 	async sendMessage(userId: string, message: string) {
+		console.log("[TELEGRAM SERVICE] Sending message", { userId, message });
 		await this.bot.api.sendMessage(parseInt(userId, 10), message, {
-			parse_mode: "Markdown",
+			parse_mode: "HTML",
 		});
 	}
 

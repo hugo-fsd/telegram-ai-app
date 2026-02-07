@@ -22,13 +22,16 @@ export const alarmService = {
 		const alarm: Alarm = {
 			_id: new ObjectId(alarmId),
 			userId,
-			...input,
+			name: input.name,
+			message: input.message ?? "",
+			schedule: input.schedule,
 			cronJobId,
 			active: true,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		};
 
+		console.log("[ALARM SERVICE] Alarm object before save", { alarm });
 		const createdAlarm = await alarmRepository.createAlarm(alarm);
 
 		logger.info("Alarm created", {
@@ -140,7 +143,7 @@ export const alarmService = {
 				return;
 			}
 
-			await telegramService.sendMessage(alarm.userId, `Alarm: ${alarm.message}`);
+			await telegramService.sendMessage(alarm.userId, `⏰ <b><i>Alarm: ${alarm.name}</i></b>\n${alarm.message}`);
 
 			logger.info("Alarm notification sent", {
 				userId: alarm.userId,
@@ -175,7 +178,7 @@ export const alarmService = {
 				}
 
 				// Delete the alarm from the database
-				await alarmRepository.deleteAlarm(alarmId);
+				/* 				await alarmRepository.deleteAlarm(alarmId); */
 				logger.info("One-time alarm deleted after triggering", {
 					alarmId: alarm._id?.toString(),
 					userId: alarm.userId,
