@@ -14,7 +14,7 @@ export const alarmSchema = z.object({
 	_id: z.custom<{ toString(): string }>().optional(),
 	userId: z.string().min(1),
 	name: z.string().min(1),
-	description: z.string(),
+	message: z.string(),
 	schedule: scheduleSchema,
 	cronJobId: z.number().optional(),
 	active: z.boolean().default(true),
@@ -24,7 +24,7 @@ export const alarmSchema = z.object({
 
 export const createAlarmSchema = alarmSchema.pick({
 	name: true,
-	description: true,
+	message: true,
 	schedule: true,
 });
 

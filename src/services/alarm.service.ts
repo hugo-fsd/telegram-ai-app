@@ -3,6 +3,7 @@ import type { Alarm, CreateAlarmRequest } from "../models/alarm";
 import { alarmRepository } from "../repositories/alarm.repository";
 import { cronJobService } from "./cron-job.service";
 import { logger } from "./logger.service";
+import { telegramService } from "./telegram.service";
 
 export const alarmService = {
 	async createAlarm(userId: string, input: CreateAlarmRequest): Promise<Alarm> {
@@ -138,6 +139,8 @@ export const alarmService = {
 				logger.warning("Alarm not found or inactive", { alarmId });
 				return;
 			}
+
+			await telegramService.sendMessage(alarm.userId, `Alarm: ${alarm.message}`);
 
 			logger.info("Alarm notification sent", {
 				userId: alarm.userId,

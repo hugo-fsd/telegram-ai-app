@@ -124,6 +124,12 @@ class TelegramService {
 		}
 	}
 
+	async sendMessage(userId: string, message: string) {
+		await this.bot.api.sendMessage(parseInt(userId, 10), message, {
+			parse_mode: "Markdown",
+		});
+	}
+
 	async setWebhook(url: string) {
 		try {
 			await this.bot.api.setWebhook(url, {

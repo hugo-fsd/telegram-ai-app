@@ -69,7 +69,7 @@ export const getAlarmTool = () => tool({
 		operation: z.enum(["list", "create", "update", "delete"]).describe("The operation to perform: list, create, update, or delete"),
 		alarmId: z.string().optional().describe("Alarm ID (required for update/delete, optional for create)"),
 		name: z.string().optional().describe("The name/title of the alarm (required for create, optional for update)"),
-		description: z.string().optional().describe("The description or message to send when the alarm triggers"),
+		message: z.string().optional().describe("The message that will be displayed to the user when the alarm is sent"),
 		minute: z.number().int().min(0).max(59).nullable().optional().describe("Minute (0-59) or null for any minute"),
 		hour: z.number().int().min(0).max(23).nullable().optional().describe("Hour in 24-hour format (0-23) or null for any hour"),
 		day: z.number().int().min(1).max(31).nullable().optional().describe("Day of month (1-31) or null for any day"),
@@ -80,7 +80,7 @@ export const getAlarmTool = () => tool({
 		operation: "list" | "create" | "update" | "delete";
 		alarmId?: string;
 		name?: string;
-		description?: string;
+		message?: string;
 		minute?: number | null;
 		hour?: number | null;
 		day?: number | null;
@@ -111,7 +111,7 @@ export const getAlarmTool = () => tool({
 			if (month !== "*") scheduleDesc += ` of month ${month}`;
 			if (dayOfWeek !== "*") scheduleDesc += ` (weekday ${dayOfWeek})`;
 			
-			return `• **${alarm.name}** (ID: ${alarm._id?.toString() || "unknown"})\n  Type: ${scheduleType}\n  Schedule: ${scheduleDesc}\n  Status: ${alarm.active ? "Active" : "Inactive"}\n  ${alarm.description ? `Description: ${alarm.description}` : ""}`;
+			return `• **${alarm.name}** (ID: ${alarm._id?.toString() || "unknown"})\n  Type: ${scheduleType}\n  Schedule: ${scheduleDesc}\n  Status: ${alarm.active ? "Active" : "Inactive"}\n  ${alarm.message ? `Message: ${alarm.message}` : ""}`;
 		};
 
 		const listAlarms = async () => {
@@ -127,8 +127,8 @@ export const getAlarmTool = () => tool({
 		};
 
 		const createAlarm = async () => {
-			const { name, description, minute, hour, day, month, dayOfWeek } = params;
-			console.log("[ALARM TOOL] Creating alarm", { name, description, minute, hour, day, month, dayOfWeek });
+			const { name, message, minute, hour, day, month, dayOfWeek } = params;
+			console.log("[ALARM TOOL] Creating alarm", { name, message, minute, hour, day, month, dayOfWeek });
 
 			if (!name) {
 				return "Error: Name is required to create an alarm.";
@@ -170,7 +170,7 @@ export const getAlarmTool = () => tool({
 			}
 			await alarmService.createAlarm(userId, {
 				name,
-				description: description || "",
+				message: message || "",
 				schedule: {
 					timezone: "UTC",
 					expiresAt,
@@ -188,7 +188,7 @@ export const getAlarmTool = () => tool({
 		};
 
 		const updateAlarm = async () => {
-			const { alarmId, name, description, minute, hour, day, month, dayOfWeek } = params;
+			const { alarmId, name, message, minute, hour, day, month, dayOfWeek } = params;
 
 			if (!alarmId) {
 				return "Error: alarmId is required to update an alarm.";
@@ -203,7 +203,7 @@ export const getAlarmTool = () => tool({
 
 			const updateData: Partial<typeof alarm> = {};
 			if (name !== undefined) updateData.name = name;
-			if (description !== undefined) updateData.description = description;
+			if (message !== undefined) updateData.message = message;
 
 			// If schedule fields are provided, update the schedule
 			if (minute !== undefined || hour !== undefined || day !== undefined || month !== undefined || dayOfWeek !== undefined) {
