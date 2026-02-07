@@ -150,6 +150,40 @@ export const alarmService = {
 				alarmId: alarm._id?.toString(),
 				name: alarm.name,
 			});
+
+			// Check if this is a one-time alarm (has expiresAt > 0 and specific day/month)
+			// One-time alarms should be deleted after triggering since they won't trigger again
+			const isOneTimeAlarm = alarm.schedule.expiresAt > 0 && 
+				alarm.schedule.mdays[0] !== -1 && 
+				alarm.schedule.months[0] !== -1;
+
+			if (isOneTimeAlarm) {
+				logger.info("One-time alarm triggered, deleting", {
+					alarmId: alarm._id?.toString(),
+					userId: alarm.userId,
+					name: alarm.name,
+				});
+
+				// Delete the cron job if it exists
+				if (alarm.cronJobId) {
+					try {
+						await cronJobService.deleteJob(alarm.cronJobId);
+					} catch (error) {
+						logger.error(error, { 
+							context: "triggerAlarm - delete cron job", 
+							alarmId, 
+							cronJobId: alarm.cronJobId 
+						});
+					}
+				}
+
+				// Delete the alarm from the database
+				await alarmRepository.deleteAlarm(alarmId);
+				logger.info("One-time alarm deleted after triggering", {
+					alarmId: alarm._id?.toString(),
+					userId: alarm.userId,
+				});
+			}
 		} catch (error) {
 			logger.error(error, {
 				context: "triggerAlarm",
