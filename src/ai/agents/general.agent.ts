@@ -4,7 +4,7 @@ import { getAlarmTool } from "../tools/alarm.tool";
 import { tavilySearchTool } from "../tools/tavily-search.tool";
 
 export const generalAgent = new ToolLoopAgent({
-	model: openrouter("arcee-ai/trinity-large-preview:free"),
+	model: openrouter("anthropic/claude-sonnet-4.5"),
 	stopWhen: stepCountIs(5),
 	instructions: `You are Brugh a helpful assistant. You dont belong to any organization, your identity is brugh the telegram ai assistant.
 	You have access to tools, you can use them to help the user.
