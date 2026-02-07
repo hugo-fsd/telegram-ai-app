@@ -1,3 +1,4 @@
+import axios from "axios";
 import { env } from "../config/env";
 import { logger } from "./logger.service";
 
@@ -32,23 +33,11 @@ class CronJobService {
 		this.apiKey = env.CRONJOB_API_KEY;
 	}
 
-	private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-		const url = `${this.baseUrl}${endpoint}`;
-		const response = await fetch(url, {
-			...options,
-			headers: {
-				"Content-Type": "application/json",
-				"Authorization": `Bearer ${this.apiKey}`,
-				...options.headers,
-			},
-		});
-
-		if (!response.ok) {
-			const errorText = await response.text();
-			throw new Error(`Cron-job.org API error: ${response.status} ${errorText}`);
-		}
-
-		return response.json() as Promise<T>;
+	private getHeaders() {
+		return {
+			"Content-Type": "application/json",
+			"Authorization": `Bearer ${this.apiKey}`,
+		};
 	}
 
 	async createJob(url: string, schedule: CreateCronJobRequest["job"]["schedule"], title: string): Promise<number> {
@@ -67,19 +56,28 @@ class CronJobService {
 				},
 			};
 
-			const response = await this.request<CronJobResponse>("/jobs", {
-				method: "PUT",
-				body: JSON.stringify(requestBody),
-			});
+			console.log("[CRON JOB SERVICE] Creating job", JSON.stringify(requestBody, null, 2));
+			const response = await axios.put<CronJobResponse>(
+				`${this.baseUrl}/jobs`,
+				requestBody,
+				{ headers: this.getHeaders() }
+			);
+
+			console.log("[CRON JOB SERVICE] Job created", { response: response.data });
 
 			logger.info("Cron job created", {
-				jobId: response.jobId,
+				jobId: response.data.jobId,
 				title,
 				url,
 			});
 
-			return response.jobId;
+			return response.data.jobId;
 		} catch (error) {
+			if (axios.isAxiosError(error)) {
+				const errorText = error.response?.data || error.message;
+				logger.error(error, { context: "createCronJob", url, title, errorText });
+				throw new Error(`Cron-job.org API error: ${error.response?.status || "Unknown"} ${errorText}`);
+			}
 			logger.error(error, { context: "createCronJob", url, title });
 			throw error;
 		}
@@ -87,18 +85,26 @@ class CronJobService {
 
 	async deleteJob(jobId: number): Promise<void> {
 		try {
-			await this.request(`/jobs/${jobId}`, {
-				method: "DELETE",
+			console.log("[CRON JOB SERVICE] Deleting job", { jobId });
+			await axios.delete(`${this.baseUrl}/jobs/${jobId}`, {
+				headers: this.getHeaders(),
 			});
 
 			logger.info("Cron job deleted", { jobId });
+			console.log("[CRON JOB SERVICE] Job deleted", { jobId });
 		} catch (error) {
+			if (axios.isAxiosError(error)) {
+				const errorText = error.response?.data || error.message;
+				logger.error(error, { context: "deleteCronJob", jobId, errorText });
+				throw new Error(`Cron-job.org API error: ${error.response?.status || "Unknown"} ${errorText}`);
+			}
 			logger.error(error, { context: "deleteCronJob", jobId });
 			throw error;
 		}
 	}
 
 	async updateJob(jobId: number, url: string, schedule: CreateCronJobRequest["job"]["schedule"], title: string): Promise<void> {
+		console.log("[CRON JOB SERVICE] Updating job", { jobId, url, schedule, title });
 		try {
 			const requestBody: CreateCronJobRequest = {
 				job: {
@@ -114,13 +120,20 @@ class CronJobService {
 				},
 			};
 
-			await this.request(`/jobs/${jobId}`, {
-				method: "PUT",
-				body: JSON.stringify(requestBody),
-			});
+			console.log(JSON.stringify(requestBody, null, 2));
+			await axios.patch(
+				`${this.baseUrl}/jobs/${jobId}`,
+				requestBody,
+				{ headers: this.getHeaders() }
+			);
 
 			logger.info("Cron job updated", { jobId, title });
 		} catch (error) {
+			if (axios.isAxiosError(error)) {
+				const errorText = error.response?.data || error.message;
+				logger.error(error, { context: "updateCronJob", jobId, errorText });
+				throw new Error(`Cron-job.org API error: ${error.response?.status || "Unknown"} ${errorText}`);
+			}
 			logger.error(error, { context: "updateCronJob", jobId });
 			throw error;
 		}

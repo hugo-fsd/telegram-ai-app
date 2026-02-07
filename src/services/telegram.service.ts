@@ -16,6 +16,13 @@ class TelegramService {
 
 	private setupHandlers() {
 		this.bot.on("message:text", async (ctx) => {
+			console.log("Received Telegram message", {
+				userId: ctx.from.id.toString(),
+				username: ctx.from.username || ctx.from.first_name,
+				messageLength: ctx.message.text.length,
+				message: ctx.message.text
+			});
+
 			const userId = ctx.from.id.toString();
 			const username = ctx.from.username || ctx.from.first_name;
 

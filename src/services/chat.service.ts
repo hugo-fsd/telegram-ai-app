@@ -7,7 +7,8 @@ import { logger } from "./logger.service";
 export const chatService = {
 	async processMessage(userId: string, message: string): Promise<ConversationOutput> {
 		logger.breadcrumb("Processing user message", { userId, messageLength: message.length });
-		
+		console.log("Processing user message", { userId, messageLength: message.length, message });
+
 		try {
 			const userConversations = await conversationsService.getUserConversations(userId);
 
@@ -56,6 +57,7 @@ export const chatService = {
 			throw new Error("Conversation not found");
 		}
 
+		console.log("Continuing conversation", { conversationId, messageLength: message.length, message });
 		const messages = await conversationsService.getConversationMessages(conversationId);
 		const userMessage: ModelMessage = { role: "user", content: message };
 

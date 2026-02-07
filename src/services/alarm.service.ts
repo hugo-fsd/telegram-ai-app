@@ -7,33 +7,30 @@ import { telegramService } from "./telegram.service";
 
 export const alarmService = {
 	async createAlarm(userId: string, input: CreateAlarmRequest): Promise<Alarm> {
-		// First create the alarm in database to get the ID
+		console.log("[ALARM SERVICE] Creating alarm", { userId, input });
 		const alarm: Alarm = {
 			userId,
 			...input,
 			active: true,
-		createdAt: new Date(),
-		updatedAt: new Date(),
-	};
+			createdAt: new Date(),
+			updatedAt: new Date(),
+		};
 
-	const createdAlarm = await alarmRepository.createAlarm(alarm);
+		const createdAlarm = await alarmRepository.createAlarm(alarm);
 		const alarmId = createdAlarm._id?.toString();
-		
+
 		if (!alarmId) {
 			throw new Error("Failed to create alarm - no ID returned");
 		}
 
-		// Create webhook URL for this alarm using the database ID
-		const webhookUrl = `${env.CRONJOB_WEBHOOK_URL}${alarmId}`;
+		const webhookUrl = `${env.CRONJOB_WEBHOOK_URL}/${alarmId}`;
 
-		// Create cron job on cron-job.org with schedule directly
 		const cronJobId = await cronJobService.createJob(
 			webhookUrl,
 			input.schedule,
 			`Alarm: ${input.name}`
 		);
 
-		// Update alarm with cron job ID
 		await alarmRepository.updateAlarm(alarmId, { cronJobId });
 
 		logger.info("Alarm created", {
@@ -43,7 +40,7 @@ export const alarmService = {
 			name: alarm.name,
 		});
 
-        await telegramService.sendMessage(userId, `Alarm created: ${alarm.name}`);
+		await telegramService.sendMessage(userId, `Alarm created: ${alarm.name}`);
 		return { ...createdAlarm, cronJobId };
 	},
 
@@ -64,7 +61,6 @@ export const alarmService = {
 			throw new Error("Unauthorized");
 		}
 
-		// Delete cron job from cron-job.org
 		if (alarm.cronJobId) {
 			try {
 				await cronJobService.deleteJob(alarm.cronJobId);
@@ -77,6 +73,46 @@ export const alarmService = {
 		logger.info("Alarm deleted", { userId, alarmId });
 	},
 
+	async updateAlarm(alarmId: string, userId: string, input: Partial<CreateAlarmRequest>): Promise<Alarm> {
+		const alarm = await alarmRepository.getAlarmById(alarmId);
+		if (!alarm) {
+			throw new Error("Alarm not found");
+		}
+		if (alarm.userId !== userId) {
+			throw new Error("Unauthorized");
+		}
+
+		// Update the alarm in database
+		const updates: Partial<Alarm> = {
+			...input,
+			updatedAt: new Date(),
+		};
+		await alarmRepository.updateAlarm(alarmId, updates);
+
+		// If schedule was updated, update the cron job
+		if (input.schedule && alarm.cronJobId) {
+			const webhookUrl = `${env.CRONJOB_WEBHOOK_URL}/${alarmId}`;
+			try {
+				await cronJobService.updateJob(
+					alarm.cronJobId,
+					webhookUrl,
+					input.schedule,
+					`Alarm: ${input.name || alarm.name}`
+				);
+			} catch (error) {
+				logger.error(error, { context: "updateAlarm", alarmId, cronJobId: alarm.cronJobId });
+			}
+		}
+
+		const updatedAlarm = await alarmRepository.getAlarmById(alarmId);
+		if (!updatedAlarm) {
+			throw new Error("Failed to retrieve updated alarm");
+		}
+
+		logger.info("Alarm updated", { userId, alarmId });
+		return updatedAlarm;
+	},
+
 	async deactivateAlarm(alarmId: string, userId: string): Promise<void> {
 		const alarm = await alarmRepository.getAlarmById(alarmId);
 		if (!alarm) {
@@ -86,7 +122,6 @@ export const alarmService = {
 			throw new Error("Unauthorized");
 		}
 
-		// Delete cron job from cron-job.org when deactivating
 		if (alarm.cronJobId) {
 			try {
 				await cronJobService.deleteJob(alarm.cronJobId);
@@ -100,6 +135,7 @@ export const alarmService = {
 	},
 
 	async triggerAlarm(alarmId: string): Promise<void> {
+		console.log("[ALARM SERVICE] Triggering alarm", { alarmId });
 		try {
 			const alarm = await alarmRepository.getAlarmById(alarmId);
 			if (!alarm || !alarm.active) {

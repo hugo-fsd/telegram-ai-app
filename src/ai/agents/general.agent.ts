@@ -1,6 +1,6 @@
 import { openrouter } from "@openrouter/ai-sdk-provider";
 import { stepCountIs, ToolLoopAgent } from "ai";
-import { alarmTool } from "../tools/alarm.tool";
+import { getAlarmTool } from "../tools/alarm.tool";
 import { tavilySearchTool } from "../tools/tavily-search.tool";
 
 export const generalAgent = new ToolLoopAgent({
@@ -22,6 +22,6 @@ export const generalAgent = new ToolLoopAgent({
 	WHEN ADDRESSING TIME NEVER GO BY MEMORY, ALWAYS USE THE CURRENT TIME INFORMATION PROVIDED IN THE SYSTEM CONTEXT. YOU WILL FAIL IF YOU DO NOT DO THIS.`,
 	tools: { 
 		tavilySearchTool,
-		alarmTool,
+		alarmTool: getAlarmTool(),
 	},
 });

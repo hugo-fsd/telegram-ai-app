@@ -24,7 +24,6 @@ const app = new Elysia().use(telegramController).listen({
 });
 
 logger.info(`Server running at ${app.server?.hostname}:${app.server?.port}`);
-
 const { telegramService } = await import("./services/telegram.service");
 
 await telegramService.removeWebhook();
@@ -38,3 +37,8 @@ if (import.meta.hot) {
 		await telegramService.stop();
 	});
 }
+
+console.log("App running at", env.PORT);
+console.log("Connected to MongoDB", env.MONGODB_DB_NAME);
+console.log("Connected to Telegram", env.TELEGRAM_WEBHOOK_URL);
+console.log("Connected to Cronjob", env.CRONJOB_WEBHOOK_URL);

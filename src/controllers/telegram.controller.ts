@@ -27,6 +27,7 @@ export const telegramController = new Elysia()
 	})
 	.get("/alarms/trigger/:alarmId", async ({ params }) => {
 		const { alarmId } = params;
+		console.log("Alarm trigger webhook received", { alarmId });
 		logger.info("Alarm trigger webhook received", { alarmId });
 		
 		try {

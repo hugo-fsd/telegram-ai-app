@@ -1,106 +1,262 @@
 import { tool } from "ai";
 import { z } from "zod";
+import type { Alarm } from "../../models/alarm";
 import { alarmService } from "../../services/alarm.service";
 import { logger } from "../../services/logger.service";
 
 let currentUserId: string | null = null;
+let currentUserAlarms: Alarm[] = [];
 
-export const setAlarmToolContext = (userId: string) => {
+export const setAlarmToolContext = async (userId: string) => {
 	currentUserId = userId;
+	currentUserAlarms = await alarmService.getAlarmsByUserId(userId);
 };
 
-export const alarmTool = tool({
-	description: `Create an alarm, reminder, or scheduled notification for the user. 
-	Use this when the user asks to:
-	- Set an alarm
-	- Create a reminder
-	- Schedule a notification
-	- Set a timer
-	- Remember something at a specific time
-	
-	IMPORTANT: Use the current date and time from the system context to determine the correct values.
-	Provide specific numeric values for the schedule. Use null/undefined for fields that should match any value (wildcards).
-	
-	Examples:
-	- One-time alarm today at 2:30 PM: minute=30, hour=14, day=currentDay, month=currentMonth, dayOfWeek=null
-	- One-time alarm on Feb 7 at 2:30 PM: minute=30, hour=14, day=7, month=2, dayOfWeek=null
-	- Every day at 9 AM: minute=0, hour=9, day=null, month=null, dayOfWeek=null
-	- Every Monday at 8 AM: minute=0, hour=8, day=null, month=null, dayOfWeek=1
-	- Every hour: minute=0, hour=null, day=null, month=null, dayOfWeek=null
-	
-	Field meanings:
-	- minute: 0-59 (specific minute, or null for any minute)
-	- hour: 0-23 (specific hour in 24-hour format, or null for any hour)
-	- day: 1-31 (day of month, or null for any day)
-	- month: 1-12 (month number, or null for any month)
-	- dayOfWeek: 0-7 (0 or 7 = Sunday, 1 = Monday, etc., or null for any day)`,
+const formatAlarmsForContext = (alarms: Alarm[]): string => {
+	if (alarms.length === 0) {
+		return "No existing alarms.";
+	}
+
+	return alarms.map((alarm, index) => {
+		const schedule = alarm.schedule;
+		const hour = schedule.hours[0] === -1 ? "*" : schedule.hours[0];
+		const minute = schedule.minutes[0] === -1 ? "*" : schedule.minutes[0];
+		const day = schedule.mdays[0] === -1 ? "*" : schedule.mdays[0];
+		const month = schedule.months[0] === -1 ? "*" : schedule.months[0];
+		const dayOfWeek = schedule.wdays[0] === -1 ? "*" : schedule.wdays[0];
+
+		return `${index + 1}. ID: ${alarm._id?.toString() || "unknown"}, Name: "${alarm.name}", Schedule: ${hour}:${minute} (day ${day}, month ${month}, weekday ${dayOfWeek}), Active: ${alarm.active}`;
+	}).join("\n");
+};
+
+const getAlarmToolDescription = (): string => {
+	const alarmsContext = formatAlarmsForContext(currentUserAlarms);
+	return `Manage alarms, reminders, and scheduled notifications for the user.
+
+CURRENT USER'S ALARMS:
+${alarmsContext}
+
+OPERATIONS:
+- CREATE: Create a new alarm. Check existing alarms first to avoid duplicates.
+- UPDATE: Update an existing alarm by its ID. Provide alarmId and the fields to update.
+- DELETE: Delete an existing alarm by its ID or name.
+
+IMPORTANT: 
+- Use the current date and time from the system context to determine correct values.
+- Before creating, check if an alarm with the same name or schedule already exists.
+- For updates/deletes, use the alarm ID from the list above.
+- Use null for schedule fields that should match any value (wildcards).
+
+EXAMPLES:
+- Create one-time alarm on Feb 7 at 2:30 PM: operation="create", minute=30, hour=14, day=7, month=2
+- Create recurring alarm every day at 9 AM: operation="create", minute=0, hour=9, day=null, month=null
+- Update alarm: operation="update", alarmId="...", name="New name", hour=10
+- Delete alarm: operation="delete", alarmId="..." or name="Alarm name"
+
+FIELD MEANINGS:
+- minute: 0-59 (specific minute, or null for any minute)
+- hour: 0-23 (specific hour in 24-hour format, or null for any hour)
+- day: 1-31 (day of month, or null for any day)
+- month: 1-12 (month number, or null for any month)
+- dayOfWeek: 0-7 (0 or 7 = Sunday, 1 = Monday, etc., or null for any day)`;
+};
+
+export const getAlarmTool = () => tool({
+	description: getAlarmToolDescription(),
 	inputSchema: z.object({
-		name: z.string().describe("The name/title of the alarm or reminder"),
-		description: z.string().describe("The description or message to send when the alarm triggers"),
-		minute: z.number().int().min(0).max(59).nullable().describe("Minute (0-59) or null for any minute"),
-		hour: z.number().int().min(0).max(23).nullable().describe("Hour in 24-hour format (0-23) or null for any hour"),
-		day: z.number().int().min(1).max(31).nullable().describe("Day of month (1-31) or null for any day"),
-		month: z.number().int().min(1).max(12).nullable().describe("Month (1-12) or null for any month"),
-		dayOfWeek: z.number().int().min(0).max(7).nullable().describe("Day of week (0 or 7=Sunday, 1=Monday, etc.) or null for any day"),
+		operation: z.enum(["create", "update", "delete"]).describe("The operation to perform: create, update, or delete"),
+		alarmId: z.string().optional().describe("Alarm ID (required for update/delete, optional for create)"),
+		name: z.string().optional().describe("The name/title of the alarm (required for create, optional for update)"),
+		description: z.string().optional().describe("The description or message to send when the alarm triggers"),
+		minute: z.number().int().min(0).max(59).nullable().optional().describe("Minute (0-59) or null for any minute"),
+		hour: z.number().int().min(0).max(23).nullable().optional().describe("Hour in 24-hour format (0-23) or null for any hour"),
+		day: z.number().int().min(1).max(31).nullable().optional().describe("Day of month (1-31) or null for any day"),
+		month: z.number().int().min(1).max(12).nullable().optional().describe("Month (1-12) or null for any month"),
+		dayOfWeek: z.number().int().min(0).max(7).nullable().optional().describe("Day of week (0 or 7=Sunday, 1=Monday, etc.) or null for any day"),
 	}),
 	execute: async (params: {
-		name: string;
-		description: string;
-		minute: number | null;
-		hour: number | null;
-		day: number | null;
-		month: number | null;
-		dayOfWeek: number | null;
+		operation: "create" | "update" | "delete";
+		alarmId?: string;
+		name?: string;
+		description?: string;
+		minute?: number | null;
+		hour?: number | null;
+		day?: number | null;
+		month?: number | null;
+		dayOfWeek?: number | null;
 	}) => {
-		const { name, description, minute, hour, day, month, dayOfWeek } = params;
-
+		console.log("[ALARM TOOL] Executing alarm tool", { params });
 		if (!currentUserId) {
-			return "Error: User context not available. Cannot create alarm.";
+			return "Error: User context not available. Cannot manage alarms.";
 		}
 
 		const userId = currentUserId;
 
-		try {
-			logger.info("Alarm tool called", { userId, name, minute, hour, day, month, dayOfWeek });
+		const createAlarm = async () => {
+			const { name, description, minute, hour, day, month, dayOfWeek } = params;
+			console.log("[ALARM TOOL] Creating alarm", { name, description, minute, hour, day, month, dayOfWeek });
 
-			const isOneTimeAlarm = day !== null && month !== null;
-
+			if (!name) {
+				return "Error: Name is required to create an alarm.";
+			}
+			// Check for duplicate alarm by name
+			const existingAlarm = currentUserAlarms.find(a => a.name.toLowerCase() === name.toLowerCase());
+			if (existingAlarm) {
+				return `Warning: An alarm named "${name}" already exists (ID: ${existingAlarm._id?.toString()}). Use update operation to modify it, or delete it first.`;
+			}
+			logger.info("Creating alarm", { userId, name, minute, hour, day, month, dayOfWeek });
+			const isOneTimeAlarm = day !== null && day !== undefined && month !== null && month !== undefined;
 			let expiresAt = 0;
-
-			if (isOneTimeAlarm) {
+			if (isOneTimeAlarm && month !== undefined && day !== undefined) {
 				const now = new Date();
 				const currentYear = now.getFullYear();
-				const alarmMinute = minute !== null ? minute : 0;
-				const alarmHour = hour !== null ? hour : 0;
+				const alarmMinute = minute !== null && minute !== undefined ? minute : 0;
+				const alarmHour = hour !== null && hour !== undefined ? hour : 0;
 
+				// Create alarm date
 				const alarmDate = new Date(Date.UTC(currentYear, month - 1, day, alarmHour, alarmMinute, 0, 0));
 
+				// If alarm date is in the past, schedule for next year
 				if (alarmDate < now) {
 					alarmDate.setFullYear(currentYear + 1);
 				}
 
-				expiresAt = Math.floor(alarmDate.getTime() / 1000);
-			}
+				// Calculate expiry time: 1 minute after alarm time
+				const expiryDate = new Date(alarmDate.getTime() + 60000); // Add 1 minute (60000 ms)
 
+				// Format as YYYYMMDDhhmmss
+				const year = expiryDate.getUTCFullYear();
+				const mon = String(expiryDate.getUTCMonth() + 1).padStart(2, '0');
+				const d = String(expiryDate.getUTCDate()).padStart(2, '0');
+				const h = String(expiryDate.getUTCHours()).padStart(2, '0');
+				const m = String(expiryDate.getUTCMinutes()).padStart(2, '0');
+				const s = String(expiryDate.getUTCSeconds()).padStart(2, '0');
+
+				expiresAt = parseInt(`${year}${mon}${d}${h}${m}${s}`, 10);
+			}
 			await alarmService.createAlarm(userId, {
 				name,
-				description,
+				description: description || "",
 				schedule: {
 					timezone: "UTC",
 					expiresAt,
-					minutes: minute !== null ? [minute] : [-1],
-					hours: hour !== null ? [hour] : [-1],
-					mdays: day !== null ? [day] : [-1],
-					months: month !== null ? [month] : [-1],
-					wdays: dayOfWeek !== null ? [dayOfWeek] : [-1],
+					minutes: minute !== null && minute !== undefined ? [minute] : [-1],
+					hours: hour !== null && hour !== undefined ? [hour] : [-1],
+					mdays: day !== null && day !== undefined ? [day] : [-1],
+					months: month !== null && month !== undefined ? [month] : [-1],
+					wdays: dayOfWeek !== null && dayOfWeek !== undefined ? [dayOfWeek] : [-1],
 				},
 			});
-
+			// Refresh alarms list
+			currentUserAlarms = await alarmService.getAlarmsByUserId(userId);
 			const scheduleDesc = `${hour !== null ? hour : "*"}:${minute !== null ? String(minute).padStart(2, "0") : "*"} ${day !== null ? `on day ${day}` : ""} ${month !== null ? `month ${month}` : ""} ${dayOfWeek !== null ? `(day ${dayOfWeek})` : ""}`.trim();
 			return `Alarm "${name}" has been created successfully and will trigger at ${scheduleDesc}.`;
+		};
+
+		const updateAlarm = async () => {
+			const { alarmId, name, description, minute, hour, day, month, dayOfWeek } = params;
+
+			if (!alarmId) {
+				return "Error: alarmId is required to update an alarm.";
+			}
+
+			const alarm = currentUserAlarms.find(a => a._id?.toString() === alarmId);
+			if (!alarm) {
+				return `Error: Alarm with ID "${alarmId}" not found. Check the list of existing alarms above.`;
+			}
+
+			logger.info("Updating alarm", { userId, alarmId, updates: params });
+
+			const updateData: Partial<typeof alarm> = {};
+			if (name !== undefined) updateData.name = name;
+			if (description !== undefined) updateData.description = description;
+
+			// If schedule fields are provided, update the schedule
+			if (minute !== undefined || hour !== undefined || day !== undefined || month !== undefined || dayOfWeek !== undefined) {
+				const currentSchedule = alarm.schedule;
+				const updatedDay = day !== undefined ? day : null;
+				const updatedMonth = month !== undefined ? month : null;
+				const isOneTimeAlarm = updatedDay !== null && updatedMonth !== null;
+				let expiresAt = currentSchedule.expiresAt;
+
+				if (isOneTimeAlarm && updatedMonth !== null && updatedDay !== null) {
+					const now = new Date();
+					const currentYear = now.getFullYear();
+					const alarmMinute = minute !== null && minute !== undefined ? minute : (currentSchedule.minutes[0] === -1 ? 0 : currentSchedule.minutes[0]);
+					const alarmHour = hour !== null && hour !== undefined ? hour : (currentSchedule.hours[0] === -1 ? 0 : currentSchedule.hours[0]);
+
+					const alarmDate = new Date(Date.UTC(currentYear, updatedMonth - 1, updatedDay, alarmHour, alarmMinute, 0, 0));
+
+					if (alarmDate < now) {
+						alarmDate.setFullYear(currentYear + 1);
+					}
+
+					expiresAt = Math.floor(alarmDate.getTime() / 1000);
+				}
+
+				updateData.schedule = {
+					timezone: "UTC",
+					expiresAt,
+					minutes: minute !== undefined ? (minute !== null ? [minute] : [-1]) : currentSchedule.minutes,
+					hours: hour !== undefined ? (hour !== null ? [hour] : [-1]) : currentSchedule.hours,
+					mdays: day !== undefined ? (day !== null ? [day] : [-1]) : currentSchedule.mdays,
+					months: month !== undefined ? (month !== null ? [month] : [-1]) : currentSchedule.months,
+					wdays: dayOfWeek !== undefined ? (dayOfWeek !== null ? [dayOfWeek] : [-1]) : currentSchedule.wdays,
+				};
+			}
+
+			await alarmService.updateAlarm(alarmId, userId, updateData);
+
+			// Refresh alarms list
+			currentUserAlarms = await alarmService.getAlarmsByUserId(userId);
+
+			return `Alarm "${name || alarm.name}" has been updated successfully.`;
+		};
+
+		const deleteAlarm = async () => {
+			const { alarmId, name } = params;
+
+			let alarm: Alarm | undefined;
+
+			if (alarmId) {
+				alarm = currentUserAlarms.find(a => a._id?.toString() === alarmId);
+			} else if (name) {
+				alarm = currentUserAlarms.find(a => a.name.toLowerCase() === name.toLowerCase());
+			}
+
+			if (!alarm) {
+				return `Error: Alarm not found. ${alarmId ? `ID: ${alarmId}` : name ? `Name: ${name}` : "Provide either alarmId or name"}. Check the list of existing alarms above.`;
+			}
+
+			const alarmIdToDelete = alarm._id?.toString();
+			if (!alarmIdToDelete) {
+				return "Error: Alarm ID not found. Cannot delete alarm.";
+			}
+
+			logger.info("Deleting alarm", { userId, alarmId: alarmIdToDelete, name: alarm.name });
+
+			await alarmService.deleteAlarm(alarmIdToDelete, userId);
+
+			// Refresh alarms list
+			currentUserAlarms = await alarmService.getAlarmsByUserId(userId);
+
+			return `Alarm "${alarm.name}" has been deleted successfully.`;
+		};
+
+		try {
+			switch (params.operation) {
+				case "create":
+					return await createAlarm();
+				case "update":
+					return await updateAlarm();
+				case "delete":
+					return await deleteAlarm();
+				default:
+					return `Error: Unknown operation "${params.operation}". Use "create", "update", or "delete".`;
+			}
 		} catch (error) {
-			logger.error(error, { context: "alarmTool", userId });
-			return `Failed to create alarm: ${error instanceof Error ? error.message : "Unknown error"}`;
+			logger.error(error, { context: "alarmTool", userId, operation: params.operation });
+			return `Failed to ${params.operation} alarm: ${error instanceof Error ? error.message : "Unknown error"}`;
 		}
 	},
 });
