@@ -3,26 +3,13 @@ import type { Alarm, CreateAlarmRequest } from "../models/alarm";
 import { alarmRepository } from "../repositories/alarm.repository";
 import { cronJobService } from "./cron-job.service";
 import { logger } from "./logger.service";
-import { telegramService } from "./telegram.service";
 
 export const alarmService = {
 	async createAlarm(userId: string, input: CreateAlarmRequest): Promise<Alarm> {
 		console.log("[ALARM SERVICE] Creating alarm", { userId, input });
-		const alarm: Alarm = {
-			userId,
-			...input,
-			active: true,
-			createdAt: new Date(),
-			updatedAt: new Date(),
-		};
 
-		const createdAlarm = await alarmRepository.createAlarm(alarm);
-		const alarmId = createdAlarm._id?.toString();
-
-		if (!alarmId) {
-			throw new Error("Failed to create alarm - no ID returned");
-		}
-
+		const { ObjectId } = await import("mongodb");
+		const alarmId = new ObjectId().toString();
 		const webhookUrl = `${env.CRONJOB_WEBHOOK_URL}/${alarmId}`;
 
 		const cronJobId = await cronJobService.createJob(
@@ -31,7 +18,17 @@ export const alarmService = {
 			`Alarm: ${input.name}`
 		);
 
-		await alarmRepository.updateAlarm(alarmId, { cronJobId });
+		const alarm: Alarm = {
+			_id: new ObjectId(alarmId),
+			userId,
+			...input,
+			cronJobId,
+			active: true,
+			createdAt: new Date(),
+			updatedAt: new Date(),
+		};
+
+		const createdAlarm = await alarmRepository.createAlarm(alarm);
 
 		logger.info("Alarm created", {
 			userId,
@@ -40,8 +37,7 @@ export const alarmService = {
 			name: alarm.name,
 		});
 
-		await telegramService.sendMessage(userId, `Alarm created: ${alarm.name}`);
-		return { ...createdAlarm, cronJobId };
+		return createdAlarm;
 	},
 
 	async getAlarmsByUserId(userId: string): Promise<Alarm[]> {
@@ -143,8 +139,6 @@ export const alarmService = {
 				return;
 			}
 
-			const message = `⏰ **${alarm.name}**\n\n${alarm.description || "Reminder"}`;
-			await telegramService.sendMessage(alarm.userId, message);
 			logger.info("Alarm notification sent", {
 				userId: alarm.userId,
 				alarmId: alarm._id?.toString(),
@@ -153,8 +147,8 @@ export const alarmService = {
 
 			// Check if this is a one-time alarm (has expiresAt > 0 and specific day/month)
 			// One-time alarms should be deleted after triggering since they won't trigger again
-			const isOneTimeAlarm = alarm.schedule.expiresAt > 0 && 
-				alarm.schedule.mdays[0] !== -1 && 
+			const isOneTimeAlarm = alarm.schedule.expiresAt > 0 &&
+				alarm.schedule.mdays[0] !== -1 &&
 				alarm.schedule.months[0] !== -1;
 
 			if (isOneTimeAlarm) {
@@ -169,10 +163,10 @@ export const alarmService = {
 					try {
 						await cronJobService.deleteJob(alarm.cronJobId);
 					} catch (error) {
-						logger.error(error, { 
-							context: "triggerAlarm - delete cron job", 
-							alarmId, 
-							cronJobId: alarm.cronJobId 
+						logger.error(error, {
+							context: "triggerAlarm - delete cron job",
+							alarmId,
+							cronJobId: alarm.cronJobId
 						});
 					}
 				}

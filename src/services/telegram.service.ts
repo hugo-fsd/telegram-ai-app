@@ -16,56 +16,10 @@ class TelegramService {
 
 	private setupHandlers() {
 		this.bot.on("message:text", async (ctx) => {
-			console.log("Received Telegram message", {
-				userId: ctx.from.id.toString(),
-				username: ctx.from.username || ctx.from.first_name,
-				messageLength: ctx.message.text.length,
-				message: ctx.message.text
-			});
-
-			const userId = ctx.from.id.toString();
-			const username = ctx.from.username || ctx.from.first_name;
-
-			logger.setUser({ id: userId, username });
-			logger.breadcrumb("Received Telegram message", {
-				userId,
-				username,
-				messageLength: ctx.message.text.length
-			});
-
-			try {
-				let user = await usersService.getUserById(userId);
-				if (!user) {
-					user = await usersService.createUser({ name: username }, userId);
-				}
-
-				if (!user.activated) {
-					logger.warning("Inactive user attempted to use bot", {
-						telegramId: userId,
-						username,
-						activated: user.activated
-					});
-					await ctx.reply(
-						"⚠️ Your account is not activated yet.\n\n" +
-						"Please contact an administrator to activate your account."
-					);
-					return;
-				}
-
-				if (ctx.message.text.startsWith("/")) {
-					await this.handleCommand(ctx);
-				} else {
-					await this.handleMessage(ctx);
-				}
-			} catch (error) {
-				logger.error(error, {
-					userId,
-					username,
-					message: ctx.message.text.substring(0, 100)
-				});
-				await ctx.reply("Sorry, I encountered an error processing your message. Please try again.");
-			} finally {
-				logger.clearUser();
+			if (ctx.message.text.startsWith("/")) {
+				await this.handleCommand(ctx);
+			} else {
+				await this.handleMessage(ctx);
 			}
 		});
 
@@ -81,27 +35,60 @@ class TelegramService {
 	async handleMessage(ctx: MessageContext): Promise<void> {
 		await ctx.replyWithChatAction("typing");
 
-		const user = await usersService.getUserById(ctx.from.id.toString());
-		if (!user) {
-			await ctx.reply("An unexpected error occurred. Please try again.");
-			return;
+		const userId = ctx.from.id.toString();
+		const username = ctx.from.username || ctx.from.first_name;
+
+		logger.setUser({ id: userId, username });
+		logger.breadcrumb("Received Telegram message", {
+			userId,
+			username,
+			messageLength: ctx.message.text.length
+		});
+
+		try {
+			let user = await usersService.getUserById(userId);
+			if (!user) {
+				user = await usersService.createUser({ name: username }, userId);
+			}
+
+			if (!user.activated) {
+				logger.warning("Inactive user attempted to use bot", {
+					telegramId: userId,
+					username,
+					activated: user.activated
+				});
+				await ctx.reply(
+					"⚠️ Your account is not activated yet.\n\n" +
+					"Please contact an administrator to activate your account."
+				);
+				return;
+			}
+
+			const messageText = ctx.message.text;
+			logger.info("Processing user message", {
+				userId: user.userId,
+				messagePreview: messageText.substring(0, 50)
+			});
+
+			const response = await chatService.processMessage(user.userId, messageText);
+
+			const replyText = response.response?.trim() || "I apologize, but I couldn't generate a response. Please try again.";
+			await ctx.reply(replyText);
+
+			logger.info("Successfully sent response to user", {
+				userId: user.userId,
+				responseLength: replyText.length
+			});
+		} catch (error) {
+			logger.error(error, {
+				userId,
+				username,
+				message: ctx.message.text.substring(0, 100)
+			});
+			await ctx.reply("Sorry, I encountered an error processing your message. Please try again.");
+		} finally {
+			logger.clearUser();
 		}
-
-		const messageText = ctx.message.text;
-		logger.info("Processing user message", {
-			userId: user.userId,
-			messagePreview: messageText.substring(0, 50)
-		});
-
-		const response = await chatService.processMessage(user.userId, messageText);
-
-		const replyText = response.response?.trim() || "I apologize, but I couldn't generate a response. Please try again.";
-		await ctx.reply(replyText);
-
-		logger.info("Successfully sent response to user", {
-			userId: user.userId,
-			responseLength: replyText.length
-		});
 	}
 
 	async handleCommand(ctx: MessageContext): Promise<void> {
@@ -158,17 +145,6 @@ class TelegramService {
 		}
 	}
 
-	async sendMessage(userId: string, message: string): Promise<void> {
-		try {
-			await this.bot.api.sendMessage(parseInt(userId, 10), message, {
-				parse_mode: "Markdown",
-			});
-			logger.info("Message sent to user", { userId, messageLength: message.length });
-		} catch (error) {
-			logger.error(error, { context: "sendMessage", userId });
-			throw error;
-		}
-	}
 
 	async stop() {
 		await this.bot.stop();

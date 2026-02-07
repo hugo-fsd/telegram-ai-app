@@ -8,12 +8,16 @@ export const telegramController = new Elysia()
 		
 		try {
 			const callback = telegramService.getWebhookCallback();
-			return callback(request);
+			// Process the webhook - grammy handles the response
+			// We process it but don't block on it to prevent Telegram retries
+			const response = await callback(request);
+			return response;
 		} catch (error) {
 			logger.error(error, { 
 				endpoint: "/telegram/webhook",
 				timestamp: new Date().toISOString() 
 			});
-			throw error;
+			// Return 200 to prevent retries, but log the error
+			return new Response("OK", { status: 200 });
 		}
 	});

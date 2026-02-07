@@ -11,23 +11,18 @@ class ConversationsRepository {
 		this.collection = db.collection<Conversation>(collectionName);
 	}
 
-	async createConversation(conversation: Conversation): Promise<void> {
-		await this.collection.insertOne(conversation);
+	async createConversation(conversation: Conversation): Promise<Conversation> {
+		const result = await this.collection.insertOne(conversation as Conversation & { _id?: ObjectId });
+		return { ...conversation, _id: result.insertedId };
 	}
 
 	async getConversation(id: string): Promise<Conversation | null> {
 		return await this.collection.findOne({ _id: new ObjectId(id) });
 	}
 
-	async updateConversation(id: string, conversation: Conversation): Promise<void> {
-		await this.collection.updateOne(
-			{ _id: new ObjectId(id) },
-			{ $set: conversation },
-		);
-	}
 
-	async getUserConversations(userId: string): Promise<Conversation[]> {
-		return await this.collection.find({ userId: userId }).toArray();
+	async getConversationByUserId(userId: string): Promise<Conversation | null> {
+		return await this.collection.findOne({ userId });
 	}
 
 	async addMessage(conversationId: string, message: ModelMessage): Promise<void> {
@@ -42,17 +37,6 @@ class ConversationsRepository {
 			{ _id: new ObjectId(conversationId) },
 			{ $push: { messages: { $each: messages } }, $set: { updatedAt: new Date() } },
 		);
-	}
-
-	async getConversationMessages(conversationId: string, limit?: number): Promise<ModelMessage[]> {
-		const projection = limit ? { messages: { $slice: -limit } } : { messages: 1 };
-
-		const conversation = await this.collection.findOne(
-			{ _id: new ObjectId(conversationId) },
-			{ projection },
-		);
-
-		return conversation?.messages || [];
 	}
 }
 
