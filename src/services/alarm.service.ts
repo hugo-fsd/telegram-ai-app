@@ -48,10 +48,6 @@ export const alarmService = {
 		return await alarmRepository.getAlarmsByUserId(userId);
 	},
 
-	async getActiveAlarms(): Promise<Alarm[]> {
-		return await alarmRepository.getActiveAlarms();
-	},
-
 	async deleteAlarm(alarmId: string, userId: string): Promise<void> {
 		const alarm = await alarmRepository.getAlarmById(alarmId);
 		if (!alarm) {
@@ -113,29 +109,10 @@ export const alarmService = {
 		return updatedAlarm;
 	},
 
-	async deactivateAlarm(alarmId: string, userId: string): Promise<void> {
-		const alarm = await alarmRepository.getAlarmById(alarmId);
-		if (!alarm) {
-			throw new Error("Alarm not found");
-		}
-		if (alarm.userId !== userId) {
-			throw new Error("Unauthorized");
-		}
-
-		if (alarm.cronJobId) {
-			try {
-				await cronJobService.deleteJob(alarm.cronJobId);
-			} catch (error) {
-				logger.error(error, { context: "deactivateAlarm", alarmId, cronJobId: alarm.cronJobId });
-			}
-		}
-
-		await alarmRepository.deactivateAlarm(alarmId);
-		logger.info("Alarm deactivated", { userId, alarmId });
-	},
 
 	async triggerAlarm(alarmId: string): Promise<void> {
 		console.log("[ALARM SERVICE] Triggering alarm", { alarmId });
+
 		try {
 			const alarm = await alarmRepository.getAlarmById(alarmId);
 			if (!alarm || !alarm.active) {
@@ -151,8 +128,6 @@ export const alarmService = {
 				name: alarm.name,
 			});
 
-			// Check if this is a one-time alarm (has expiresAt > 0 and specific day/month)
-			// One-time alarms should be deleted after triggering since they won't trigger again
 			const isOneTimeAlarm = alarm.schedule.expiresAt > 0 &&
 				alarm.schedule.mdays[0] !== -1 &&
 				alarm.schedule.months[0] !== -1;
@@ -164,7 +139,6 @@ export const alarmService = {
 					name: alarm.name,
 				});
 
-				// Delete the cron job if it exists
 				if (alarm.cronJobId) {
 					try {
 						await cronJobService.deleteJob(alarm.cronJobId);
@@ -177,8 +151,7 @@ export const alarmService = {
 					}
 				}
 
-				// Delete the alarm from the database
-				/* 				await alarmRepository.deleteAlarm(alarmId); */
+				await alarmRepository.deleteAlarm(alarmId);
 				logger.info("One-time alarm deleted after triggering", {
 					alarmId: alarm._id?.toString(),
 					userId: alarm.userId,

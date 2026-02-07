@@ -116,7 +116,6 @@ export const getAlarmTool = () => tool({
 		};
 
 		const listAlarms = async () => {
-			// Refresh alarms list to get the latest data
 			currentUserAlarms = await alarmService.getAlarmsByUserId(userId);
 			
 			if (currentUserAlarms.length === 0) {
