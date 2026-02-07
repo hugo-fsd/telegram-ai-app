@@ -12,11 +12,11 @@ export const alarmService = {
 			userId,
 			...input,
 			active: true,
-			createdAt: new Date(),
-			updatedAt: new Date(),
-		};
+		createdAt: new Date(),
+		updatedAt: new Date(),
+	};
 
-		const createdAlarm = await alarmRepository.createAlarm(alarm);
+	const createdAlarm = await alarmRepository.createAlarm(alarm);
 		const alarmId = createdAlarm._id?.toString();
 		
 		if (!alarmId) {
@@ -26,10 +26,10 @@ export const alarmService = {
 		// Create webhook URL for this alarm using the database ID
 		const webhookUrl = `${env.CRONJOB_WEBHOOK_URL}${alarmId}`;
 
-		// Create cron job on cron-job.org
+		// Create cron job on cron-job.org with schedule directly
 		const cronJobId = await cronJobService.createJob(
 			webhookUrl,
-			input.cronExpression,
+			input.schedule,
 			`Alarm: ${input.name}`
 		);
 
@@ -43,6 +43,7 @@ export const alarmService = {
 			name: alarm.name,
 		});
 
+        await telegramService.sendMessage(userId, `Alarm created: ${alarm.name}`);
 		return { ...createdAlarm, cronJobId };
 	},
 

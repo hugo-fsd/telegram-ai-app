@@ -2,26 +2,26 @@ import { env } from "../config/env";
 import { logger } from "./logger.service";
 
 interface CronJobResponse {
-	job: {
-		job_id: number;
-		enabled: number;
-		url: string;
-		timezone: string;
-		title: string;
-	};
+	jobId: number;
 }
 
 interface CreateCronJobRequest {
-	url: string;
-	schedule: {
-		timezone: string;
-		hours: number[];
-		mdays: number[];
-		minutes: number[];
-		months: number[];
-		wdays: number[];
+	job: {
+		title: string;
+		url: string;
+		enabled: boolean;
+		saveResponses: boolean;
+		requestMethod: number;
+		schedule: {
+			timezone: string;
+			expiresAt: number;
+			hours: number[];
+			minutes: number[];
+			mdays: number[];
+			months: number[];
+			wdays: number[];
+		};
 	};
-	title: string;
 }
 
 class CronJobService {
@@ -48,32 +48,37 @@ class CronJobService {
 			throw new Error(`Cron-job.org API error: ${response.status} ${errorText}`);
 		}
 
-		return response.json();
+		return response.json() as Promise<T>;
 	}
 
-	async createJob(url: string, cronExpression: string, title: string): Promise<number> {
+	async createJob(url: string, schedule: CreateCronJobRequest["job"]["schedule"], title: string): Promise<number> {
 		try {
-			// Convert cron expression to cron-job.org schedule format
-			const schedule = this.parseCronExpression(cronExpression);
-
 			const requestBody: CreateCronJobRequest = {
-				url,
-				schedule,
-				title,
+				job: {
+					title,
+					url,
+					enabled: true,
+					saveResponses: true,
+					requestMethod: 0, // GET
+					schedule: {
+						...schedule,
+						expiresAt: schedule.expiresAt ?? 0,
+					},
+				},
 			};
 
 			const response = await this.request<CronJobResponse>("/jobs", {
-				method: "POST",
+				method: "PUT",
 				body: JSON.stringify(requestBody),
 			});
 
 			logger.info("Cron job created", {
-				jobId: response.job.job_id,
+				jobId: response.jobId,
 				title,
 				url,
 			});
 
-			return response.job.job_id;
+			return response.jobId;
 		} catch (error) {
 			logger.error(error, { context: "createCronJob", url, title });
 			throw error;
@@ -93,18 +98,24 @@ class CronJobService {
 		}
 	}
 
-	async updateJob(jobId: number, url: string, cronExpression: string, title: string): Promise<void> {
+	async updateJob(jobId: number, url: string, schedule: CreateCronJobRequest["job"]["schedule"], title: string): Promise<void> {
 		try {
-			const schedule = this.parseCronExpression(cronExpression);
-
 			const requestBody: CreateCronJobRequest = {
-				url,
-				schedule,
-				title,
+				job: {
+					title,
+					url,
+					enabled: true,
+					saveResponses: true,
+					requestMethod: 0, // GET
+					schedule: {
+						...schedule,
+						expiresAt: schedule.expiresAt ?? 0,
+					},
+				},
 			};
 
 			await this.request(`/jobs/${jobId}`, {
-				method: "PATCH",
+				method: "PUT",
 				body: JSON.stringify(requestBody),
 			});
 
@@ -115,57 +126,6 @@ class CronJobService {
 		}
 	}
 
-	private parseCronExpression(cronExpression: string): CreateCronJobRequest["schedule"] {
-		// Cron format: "minute hour day month dayOfWeek"
-		const parts = cronExpression.trim().split(/\s+/);
-		if (parts.length !== 5) {
-			throw new Error(`Invalid cron expression: ${cronExpression}`);
-		}
-
-		const [minute, hour, day, month, dayOfWeek] = parts;
-
-		return {
-			timezone: "UTC",
-			minutes: this.parseCronField(minute, 0, 59),
-			hours: this.parseCronField(hour, 0, 23),
-			mdays: this.parseCronField(day, 1, 31),
-			months: this.parseCronField(month, 1, 12),
-			wdays: this.parseCronField(dayOfWeek, 0, 7),
-		};
-	}
-
-	private parseCronField(field: string, min: number, max: number): number[] {
-		// Handle wildcard
-		if (field === "*") {
-			return Array.from({ length: max - min + 1 }, (_, i) => i + min);
-		}
-
-		// Handle step values (e.g., */30)
-		if (field.includes("/")) {
-			const [range, step] = field.split("/");
-			const stepNum = parseInt(step, 10);
-			const rangeMin = range === "*" ? min : parseInt(range, 10);
-			const result: number[] = [];
-			for (let i = rangeMin; i <= max; i += stepNum) {
-				result.push(i);
-			}
-			return result;
-		}
-
-		// Handle ranges (e.g., 1-5)
-		if (field.includes("-")) {
-			const [start, end] = field.split("-").map((n) => parseInt(n, 10));
-			return Array.from({ length: end - start + 1 }, (_, i) => i + start);
-		}
-
-		// Handle comma-separated values (e.g., 1,3,5)
-		if (field.includes(",")) {
-			return field.split(",").map((n) => parseInt(n.trim(), 10));
-		}
-
-		// Single value
-		return [parseInt(field, 10)];
-	}
 }
 
 export const cronJobService = new CronJobService();

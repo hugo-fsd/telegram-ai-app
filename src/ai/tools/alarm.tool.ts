@@ -3,7 +3,6 @@ import { z } from "zod";
 import { alarmService } from "../../services/alarm.service";
 import { logger } from "../../services/logger.service";
 
-// Context to store userId for tool execution
 let currentUserId: string | null = null;
 
 export const setAlarmToolContext = (userId: string) => {
@@ -19,50 +18,86 @@ export const alarmTool = tool({
 	- Set a timer
 	- Remember something at a specific time
 	
-	You must provide a valid cron expression. Common examples:
-	- Every day at 9 AM: "0 9 * * *"
-	- Every Monday at 8 AM: "0 8 * * 1"
-	- Every hour: "0 * * * *"
-	- Every 30 minutes: "*/30 * * * *"
-	- Specific date/time: "0 14 25 12 *" (Dec 25 at 2 PM)
+	IMPORTANT: Use the current date and time from the system context to determine the correct values.
+	Provide specific numeric values for the schedule. Use null/undefined for fields that should match any value (wildcards).
 	
-	Cron format: "minute hour day month dayOfWeek"
-	- minute: 0-59
-	- hour: 0-23
-	- day: 1-31
-	- month: 1-12
-	- dayOfWeek: 0-7 (0 or 7 = Sunday)`,
+	Examples:
+	- One-time alarm today at 2:30 PM: minute=30, hour=14, day=currentDay, month=currentMonth, dayOfWeek=null
+	- One-time alarm on Feb 7 at 2:30 PM: minute=30, hour=14, day=7, month=2, dayOfWeek=null
+	- Every day at 9 AM: minute=0, hour=9, day=null, month=null, dayOfWeek=null
+	- Every Monday at 8 AM: minute=0, hour=8, day=null, month=null, dayOfWeek=1
+	- Every hour: minute=0, hour=null, day=null, month=null, dayOfWeek=null
+	
+	Field meanings:
+	- minute: 0-59 (specific minute, or null for any minute)
+	- hour: 0-23 (specific hour in 24-hour format, or null for any hour)
+	- day: 1-31 (day of month, or null for any day)
+	- month: 1-12 (month number, or null for any month)
+	- dayOfWeek: 0-7 (0 or 7 = Sunday, 1 = Monday, etc., or null for any day)`,
 	inputSchema: z.object({
 		name: z.string().describe("The name/title of the alarm or reminder"),
 		description: z.string().describe("The description or message to send when the alarm triggers"),
-		cronExpression: z.string().describe("Cron expression for when to trigger the alarm (format: 'minute hour day month dayOfWeek')"),
+		minute: z.number().int().min(0).max(59).nullable().describe("Minute (0-59) or null for any minute"),
+		hour: z.number().int().min(0).max(23).nullable().describe("Hour in 24-hour format (0-23) or null for any hour"),
+		day: z.number().int().min(1).max(31).nullable().describe("Day of month (1-31) or null for any day"),
+		month: z.number().int().min(1).max(12).nullable().describe("Month (1-12) or null for any month"),
+		dayOfWeek: z.number().int().min(0).max(7).nullable().describe("Day of week (0 or 7=Sunday, 1=Monday, etc.) or null for any day"),
 	}),
-	execute: async (params: { name: string; description: string; cronExpression: string }) => {
-		const { name, description, cronExpression } = params;
-		
+	execute: async (params: {
+		name: string;
+		description: string;
+		minute: number | null;
+		hour: number | null;
+		day: number | null;
+		month: number | null;
+		dayOfWeek: number | null;
+	}) => {
+		const { name, description, minute, hour, day, month, dayOfWeek } = params;
+
 		if (!currentUserId) {
 			return "Error: User context not available. Cannot create alarm.";
 		}
 
 		const userId = currentUserId;
-		
-		try {
-			logger.info("Alarm tool called", { userId, name, cronExpression });
 
-			// Validate cron expression format (basic check)
-			const cronParts = cronExpression.trim().split(/\s+/);
-			if (cronParts.length !== 5) {
-				throw new Error(`Invalid cron expression. Expected 5 parts, got ${cronParts.length}. Format: "minute hour day month dayOfWeek"`);
+		try {
+			logger.info("Alarm tool called", { userId, name, minute, hour, day, month, dayOfWeek });
+
+			const isOneTimeAlarm = day !== null && month !== null;
+
+			let expiresAt = 0;
+
+			if (isOneTimeAlarm) {
+				const now = new Date();
+				const currentYear = now.getFullYear();
+				const alarmMinute = minute !== null ? minute : 0;
+				const alarmHour = hour !== null ? hour : 0;
+
+				const alarmDate = new Date(Date.UTC(currentYear, month - 1, day, alarmHour, alarmMinute, 0, 0));
+
+				if (alarmDate < now) {
+					alarmDate.setFullYear(currentYear + 1);
+				}
+
+				expiresAt = Math.floor(alarmDate.getTime() / 1000);
 			}
 
-			// Create the alarm
 			await alarmService.createAlarm(userId, {
 				name,
 				description,
-				cronExpression,
+				schedule: {
+					timezone: "UTC",
+					expiresAt,
+					minutes: minute !== null ? [minute] : [-1],
+					hours: hour !== null ? [hour] : [-1],
+					mdays: day !== null ? [day] : [-1],
+					months: month !== null ? [month] : [-1],
+					wdays: dayOfWeek !== null ? [dayOfWeek] : [-1],
+				},
 			});
 
-			return `Alarm "${name}" has been created successfully and will trigger according to the schedule (${cronExpression}).`;
+			const scheduleDesc = `${hour !== null ? hour : "*"}:${minute !== null ? String(minute).padStart(2, "0") : "*"} ${day !== null ? `on day ${day}` : ""} ${month !== null ? `month ${month}` : ""} ${dayOfWeek !== null ? `(day ${dayOfWeek})` : ""}`.trim();
+			return `Alarm "${name}" has been created successfully and will trigger at ${scheduleDesc}.`;
 		} catch (error) {
 			logger.error(error, { context: "alarmTool", userId });
 			return `Failed to create alarm: ${error instanceof Error ? error.message : "Unknown error"}`;
