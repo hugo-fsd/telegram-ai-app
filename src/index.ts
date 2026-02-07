@@ -4,7 +4,6 @@ import { env } from "./config/env";
 import { database } from "./db";
 import { logger } from "./services/logger.service";
 
-// Initialize Sentry FIRST
 Sentry.init({
 	dsn: env.SENTRY_DSN,
 	environment: env.NODE_ENV,
@@ -16,12 +15,18 @@ logger.info("Sentry initialized");
 
 await database.connect();
 
+const { healthController } = await import("./controllers/health.controller");
+const { alarmsController } = await import("./controllers/alarms.controller");
 const { telegramController } = await import("./controllers/telegram.controller");
 
-const app = new Elysia().use(telegramController).listen({
-	hostname: "0.0.0.0",
-	port: env.PORT,
-});
+const app = new Elysia()
+	.use(healthController)
+	.use(alarmsController)
+	.use(telegramController)
+	.listen({
+		hostname: "0.0.0.0",
+		port: env.PORT,
+	});
 
 logger.info(`Server running at ${app.server?.hostname}:${app.server?.port}`);
 const { telegramService } = await import("./services/telegram.service");
